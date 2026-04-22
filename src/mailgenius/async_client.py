@@ -103,44 +103,6 @@ class _AsyncTemplates(_AsyncResource):
             )
         )
 
-    async def propose_change(
-        self,
-        key: str,
-        *,
-        effect: str,
-        variable: Mapping[str, Any],
-        from_variable: Optional[Mapping[str, Any]] = None,
-        notes: Optional[str] = None,
-    ) -> t.ChangeRequest:
-        return t.ChangeRequest.model_validate(
-            await self._t.request(
-                "POST",
-                f"/v1/templates/{key}/change-requests",
-                json={
-                    "effect": effect,
-                    "variable": dict(variable),
-                    "fromVariable": dict(from_variable) if from_variable else None,
-                    "notes": notes,
-                },
-            )
-        )
-
-    async def ack_change(
-        self,
-        key: str,
-        change_request_id: str,
-        *,
-        decision: str,
-        notes: Optional[str] = None,
-    ) -> t.ChangeRequest:
-        return t.ChangeRequest.model_validate(
-            await self._t.request(
-                "POST",
-                f"/v1/templates/{key}/change-requests/{change_request_id}/ack",
-                json={"decision": decision, "notes": notes},
-            )
-        )
-
 
 # --------------------------------------------------------------------------- #
 # Sequences + events

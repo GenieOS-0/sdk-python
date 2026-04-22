@@ -80,26 +80,6 @@ def webhook():
 performs constant-time signature comparison. The same module exposes
 `sign_webhook` for local testing.
 
-## Schema-contract awareness
-
-When an agent wants to add a new variable to a template, propose the
-change instead of guessing:
-
-```python
-cr = mg.templates.propose_change(
-    "welcome",
-    effect="add",
-    variable={
-        "key": "trialDays",
-        "type": "number",
-        "label": "Trial length",
-        "sample": "14",
-    },
-    notes="Required by the new pricing experiment.",
-)
-print(f"Awaiting marketer ack: {cr.id} (state={cr.state})")
-```
-
 ## Error handling
 
 ```python

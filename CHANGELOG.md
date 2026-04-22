@@ -7,6 +7,6 @@ Initial release.
 - `MailGenius` (sync) and `AsyncMailGenius` (async) clients on top of `httpx`.
 - Pydantic v2 models for typed responses.
 - Auto idempotency keys; retry-on-429/5xx with exponential back-off.
-- Resources: `workspace`, `templates`, `templates.propose_change`, `events`, `webhooks`, `audit`, `keys`.
+- Resources: `workspace`, `templates`, `events`, `webhooks`, `audit`, `keys`.
 - Webhook signature helpers: `verify_webhook`, `sign_webhook`, `WebhookSignatureError`.
 - Typed errors inheriting from `MailGeniusError`: auth / not-found / validation / conflict / rate-limit / server / network.

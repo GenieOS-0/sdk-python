@@ -88,7 +88,8 @@ class TemplateSummary(_Model):
 class TemplateSchema(_Model):
     declared: List[TemplateVariable]
     observed: List[TemplateVariable]
-    pending: List[Dict[str, Any]]
+    # Reserved for future use. Treat as opaque.
+    pending: List[Dict[str, Any]] = []
 
 
 class Template(TemplateSummary):
@@ -106,23 +107,6 @@ class SendResult(_Model):
     id: str
     status: Literal["queued", "accepted", "sent"] = "queued"
     connector: Optional[str] = None
-
-
-# --------------------------------------------------------------------------- #
-# Schema-contract change requests
-# --------------------------------------------------------------------------- #
-
-
-class ChangeRequest(_Model):
-    id: str
-    template_key: str = Field(alias="templateKey")
-    effect: Literal["add", "remove", "rename", "retype", "flip-required"]
-    variable: TemplateVariable
-    from_variable: Optional[TemplateVariable] = Field(default=None, alias="fromVariable")
-    notes: Optional[str] = None
-    state: Literal["pending", "ratified", "rejected"]
-    created_at: datetime = Field(alias="createdAt")
-    decided_at: Optional[datetime] = Field(default=None, alias="decidedAt")
 
 
 # --------------------------------------------------------------------------- #
@@ -232,7 +216,6 @@ __all__ = [
     "TemplateSchema",
     "RenderResult",
     "SendResult",
-    "ChangeRequest",
     "SequenceSummary",
     "Sequence",
     "EnrollResult",

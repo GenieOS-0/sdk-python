@@ -4,9 +4,8 @@ in ``packages/sdk-node/src/errors.ts`` so the same docs cover both
 SDKs.
 
 The base class is :class:`MailGeniusError`. Every subclass corresponds
-to a documented API error code (Plans/Developers/Developers-PRD.md
-§4.7) so callers can ``except MailGeniusRateLimitError`` instead of
-matching on string codes.
+to a documented API error code so callers can
+``except MailGeniusRateLimitError`` instead of matching on string codes.
 """
 from __future__ import annotations
 
