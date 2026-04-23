@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Official Python SDK for MailGenius — sync + async clients, typed responses, idempotency-aware retries, webhook verification."
 readme = "README.md"
 license = { text = "MIT" }
-authors = [{ name = "MailGenius", email = "developers@mailgenius.app" }]
+authors = [{ name = "MailGenius", email = "developers@mailgenius.pro" }]
 requires-python = ">=3.9"
 keywords = ["mailgenius", "email", "transactional", "drip", "sequences", "mcp"]
 classifiers = [
@@ -30,8 +30,8 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://mailgenius.app/developers"
-Documentation = "https://docs.mailgenius.app/sdks/python"
+Homepage = "https://mailgenius.pro/developers"
+Documentation = "https://docs.mailgenius.pro/sdks/python"
 Repository = "https://github.com/mail-genius/mailgenius"
 Issues = "https://github.com/mail-genius/mailgenius/issues"
 Changelog = "https://github.com/mail-genius/mailgenius/blob/main/packages/sdk-python/CHANGELOG.md"

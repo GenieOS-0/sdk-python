@@ -30,7 +30,7 @@ import httpx
 
 from . import _errors
 
-DEFAULT_BASE_URL = "https://api.mailgenius.app"
+DEFAULT_BASE_URL = "https://api.mailgenius.pro"
 DEFAULT_TIMEOUT = httpx.Timeout(30.0, connect=10.0)
 USER_AGENT = "mailgenius-python/0.1.0"
 

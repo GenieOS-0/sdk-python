@@ -2,7 +2,7 @@
 
 [![PyPI version](https://img.shields.io/pypi/v/mailgenius.svg)](https://pypi.org/project/mailgenius)
 
-The official Python SDK for [MailGenius](https://mailgenius.app). Sync and
+The official Python SDK for [MailGenius](https://mailgenius.pro). Sync and
 async clients, typed responses (Pydantic), automatic idempotency,
 retry-on-429/5xx with exponential back-off, and webhook signature
 verification.
