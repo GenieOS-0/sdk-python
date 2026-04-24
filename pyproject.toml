@@ -30,19 +30,24 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://mailgenius.pro/developers"
+Homepage = "https://docs.mailgenius.pro/sdks/python"
 Documentation = "https://docs.mailgenius.pro/sdks/python"
-Repository = "https://github.com/mail-genius/mailgenius"
-Issues = "https://github.com/mail-genius/mailgenius/issues"
-Changelog = "https://github.com/mail-genius/mailgenius/blob/main/packages/sdk-python/CHANGELOG.md"
+Repository = "https://github.com/mail-genius/sdk-python"
+Issues = "https://github.com/mail-genius/sdk-python/issues"
+Changelog = "https://github.com/mail-genius/sdk-python/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
+telemetry = [
+    "posthog>=3.0.0",
+]
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.24",
     "respx>=0.21",
     "mypy>=1.10",
     "ruff>=0.6",
+    "posthog>=3.0.0",
+    "python-dotenv>=1.0.0",
 ]
 
 [tool.hatch.build.targets.wheel]

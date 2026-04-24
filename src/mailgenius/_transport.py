@@ -23,12 +23,13 @@ import os
 import random
 import secrets
 import time
+from collections.abc import Awaitable, Mapping
 from dataclasses import dataclass
-from typing import Any, Awaitable, Callable, Mapping, Optional, Tuple
+from typing import Any, Callable
 
 import httpx
 
-from . import _errors
+from . import _errors, _telemetry
 
 DEFAULT_BASE_URL = "https://api.mailgenius.pro"
 DEFAULT_TIMEOUT = httpx.Timeout(30.0, connect=10.0)
@@ -55,7 +56,7 @@ def _is_retryable_status(status: int) -> bool:
     return status == 429 or 500 <= status < 600
 
 
-def _retry_after_seconds(response: httpx.Response) -> Optional[float]:
+def _retry_after_seconds(response: httpx.Response) -> float | None:
     raw = response.headers.get("retry-after")
     if not raw:
         return None
@@ -70,7 +71,7 @@ class _RequestPlan:
     method: str
     url: str
     headers: dict[str, str]
-    body: Optional[bytes]
+    body: bytes | None
 
 
 class _TransportBase:
@@ -104,9 +105,9 @@ class _TransportBase:
         path: str,
         *,
         json: Any = None,
-        params: Optional[Mapping[str, Any]] = None,
-        idempotency_key: Optional[str] = None,
-        extra_headers: Optional[Mapping[str, str]] = None,
+        params: Mapping[str, Any] | None = None,
+        idempotency_key: str | None = None,
+        extra_headers: Mapping[str, str] | None = None,
     ) -> _RequestPlan:
         method = method.upper()
         url = f"{self._base_url}{path}"
@@ -121,7 +122,7 @@ class _TransportBase:
         }
         if extra_headers:
             headers.update(extra_headers)
-        body: Optional[bytes] = None
+        body: bytes | None = None
         if method in _MUTATING_METHODS:
             headers.setdefault(
                 "Idempotency-Key", idempotency_key or _gen_idempotency_key()
@@ -131,7 +132,7 @@ class _TransportBase:
                 body = _json.dumps(json, separators=(",", ":")).encode("utf-8")
         return _RequestPlan(method=method, url=url, headers=headers, body=body)
 
-    def _backoff_ms(self, attempt: int, retry_after_seconds: Optional[float]) -> int:
+    def _backoff_ms(self, attempt: int, retry_after_seconds: float | None) -> int:
         if retry_after_seconds is not None:
             return int(retry_after_seconds * 1000)
         exp = self._retry_base_ms * (2**attempt)
@@ -150,9 +151,15 @@ class _TransportBase:
     def _raise_for(self, response: httpx.Response, body: Any) -> None:
         if 200 <= response.status_code < 300:
             return
+        err_body = body if isinstance(body, dict) else {"raw": body}
+        err_code = (err_body.get("error") or {}).get("code") or f"http_{response.status_code}"
+        _telemetry.capture(self._api_key, "api_error", {
+            "status_code": response.status_code,
+            "error_code": err_code,
+        })
         raise _errors.from_response(
             status=response.status_code,
-            body=body if isinstance(body, dict) else {"raw": body},
+            body=err_body,
             request_id=response.headers.get("x-request-id"),
             retry_after_seconds=_retry_after_seconds(response),
         )
@@ -171,7 +178,7 @@ class Transport(_TransportBase):
         base_url: str = DEFAULT_BASE_URL,
         max_retries: int = 3,
         timeout: httpx.Timeout = DEFAULT_TIMEOUT,
-        client: Optional[httpx.Client] = None,
+        client: httpx.Client | None = None,
         user_agent: str = USER_AGENT,
     ) -> None:
         super().__init__(
@@ -185,7 +192,7 @@ class Transport(_TransportBase):
         if self._owned_client:
             self._client.close()
 
-    def __enter__(self) -> "Transport":
+    def __enter__(self) -> Transport:
         return self
 
     def __exit__(self, *exc_info: Any) -> None:
@@ -197,9 +204,9 @@ class Transport(_TransportBase):
         path: str,
         *,
         json: Any = None,
-        params: Optional[Mapping[str, Any]] = None,
-        idempotency_key: Optional[str] = None,
-        extra_headers: Optional[Mapping[str, str]] = None,
+        params: Mapping[str, Any] | None = None,
+        idempotency_key: str | None = None,
+        extra_headers: Mapping[str, str] | None = None,
     ) -> Any:
         plan = self._plan(
             method,
@@ -209,7 +216,7 @@ class Transport(_TransportBase):
             idempotency_key=idempotency_key,
             extra_headers=extra_headers,
         )
-        last_exc: Optional[Exception] = None
+        last_exc: Exception | None = None
         for attempt in range(self._max_retries + 1):
             try:
                 response = self._client.request(
@@ -256,9 +263,9 @@ class AsyncTransport(_TransportBase):
         base_url: str = DEFAULT_BASE_URL,
         max_retries: int = 3,
         timeout: httpx.Timeout = DEFAULT_TIMEOUT,
-        client: Optional[httpx.AsyncClient] = None,
+        client: httpx.AsyncClient | None = None,
         user_agent: str = USER_AGENT,
-        sleep: Optional[Callable[[float], Awaitable[None]]] = None,
+        sleep: Callable[[float], Awaitable[None]] | None = None,
     ) -> None:
         super().__init__(
             api_key, base_url=base_url, max_retries=max_retries, user_agent=user_agent
@@ -277,7 +284,7 @@ class AsyncTransport(_TransportBase):
         if self._owned_client:
             await self._client.aclose()
 
-    async def __aenter__(self) -> "AsyncTransport":
+    async def __aenter__(self) -> AsyncTransport:
         return self
 
     async def __aexit__(self, *exc_info: Any) -> None:
@@ -289,9 +296,9 @@ class AsyncTransport(_TransportBase):
         path: str,
         *,
         json: Any = None,
-        params: Optional[Mapping[str, Any]] = None,
-        idempotency_key: Optional[str] = None,
-        extra_headers: Optional[Mapping[str, str]] = None,
+        params: Mapping[str, Any] | None = None,
+        idempotency_key: str | None = None,
+        extra_headers: Mapping[str, str] | None = None,
     ) -> Any:
         plan = self._plan(
             method,
@@ -301,7 +308,7 @@ class AsyncTransport(_TransportBase):
             idempotency_key=idempotency_key,
             extra_headers=extra_headers,
         )
-        last_exc: Optional[Exception] = None
+        last_exc: Exception | None = None
         for attempt in range(self._max_retries + 1):
             try:
                 response = await self._client.request(
@@ -334,12 +341,12 @@ class AsyncTransport(_TransportBase):
         )
 
 
-def resolve_api_key(explicit: Optional[str]) -> str:
+def resolve_api_key(explicit: str | None) -> str:
     """Resolve the bearer token from the constructor arg or env var."""
     return (explicit or os.environ.get("MAILGENIUS_API_KEY", "")).strip()
 
 
-def resolve_base_url(explicit: Optional[str]) -> str:
+def resolve_base_url(explicit: str | None) -> str:
     return (explicit or os.environ.get("MAILGENIUS_API_URL", "")).strip() or DEFAULT_BASE_URL
 
 
@@ -353,5 +360,5 @@ __all__ = [
 ]
 
 
-def _unused() -> Tuple[str, ...]:  # pragma: no cover
+def _unused() -> tuple[str, ...]:  # pragma: no cover
     return (DEFAULT_BASE_URL, USER_AGENT)

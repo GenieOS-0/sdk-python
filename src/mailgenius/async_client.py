@@ -4,12 +4,15 @@ sync client, awaitable.
 """
 from __future__ import annotations
 
-from typing import Any, AsyncIterator, List, Mapping, Optional
+import builtins
+from collections.abc import AsyncIterator, Mapping
+from typing import Any
 
+from . import _telemetry
 from . import _types as t
 from ._transport import (
-    AsyncTransport,
     DEFAULT_BASE_URL,
+    AsyncTransport,
     resolve_api_key,
     resolve_base_url,
 )
@@ -31,7 +34,7 @@ class _AsyncWorkspace(_AsyncResource):
 
 
 class _AsyncKeys(_AsyncResource):
-    async def list(self) -> List[t.ApiKeySummary]:
+    async def list(self) -> builtins.list[t.ApiKeySummary]:
         body = await self._t.request("GET", "/v1/keys")
         items = body if isinstance(body, list) else body.get("data", [])
         return [t.ApiKeySummary.model_validate(x) for x in items]
@@ -48,7 +51,7 @@ class _AsyncKeys(_AsyncResource):
 
 
 class _AsyncTemplates(_AsyncResource):
-    async def list(self) -> List[t.TemplateSummary]:
+    async def list(self) -> builtins.list[t.TemplateSummary]:
         body = await self._t.request("GET", "/v1/templates")
         items = body if isinstance(body, list) else body.get("data", [])
         return [t.TemplateSummary.model_validate(x) for x in items]
@@ -64,26 +67,31 @@ class _AsyncTemplates(_AsyncResource):
         )
 
     async def render(
-        self, key: str, *, variables: Optional[Mapping[str, Any]] = None
+        self, key: str, *, variables: Mapping[str, Any] | None = None
     ) -> t.RenderResult:
-        return t.RenderResult.model_validate(
+        result = t.RenderResult.model_validate(
             await self._t.request(
                 "POST",
                 f"/v1/templates/{key}/render",
                 json={"variables": dict(variables or {})},
             )
         )
+        _telemetry.capture(self._t._api_key, "template_rendered", {
+            "template_key": key,
+            "has_variables": variables is not None,
+        })
+        return result
 
     async def send(
         self,
         key: str,
         *,
         to: str,
-        from_: Optional[Mapping[str, Any]] = None,
-        reply_to: Optional[Mapping[str, Any]] = None,
-        variables: Optional[Mapping[str, Any]] = None,
-        tags: Optional[List[str]] = None,
-        idempotency_key: Optional[str] = None,
+        from_: Mapping[str, Any] | None = None,
+        reply_to: Mapping[str, Any] | None = None,
+        variables: Mapping[str, Any] | None = None,
+        tags: builtins.list[str] | None = None,
+        idempotency_key: str | None = None,
     ) -> t.SendResult:
         body: dict[str, Any] = {"to": to}
         if from_ is not None:
@@ -94,7 +102,7 @@ class _AsyncTemplates(_AsyncResource):
             body["variables"] = dict(variables)
         if tags is not None:
             body["tags"] = list(tags)
-        return t.SendResult.model_validate(
+        result = t.SendResult.model_validate(
             await self._t.request(
                 "POST",
                 f"/v1/templates/{key}/send",
@@ -102,6 +110,15 @@ class _AsyncTemplates(_AsyncResource):
                 idempotency_key=idempotency_key,
             )
         )
+        _telemetry.capture(self._t._api_key, "template_sent", {
+            "template_key": key,
+            "has_from": from_ is not None,
+            "has_reply_to": reply_to is not None,
+            "has_variables": variables is not None,
+            "tag_count": len(tags) if tags else 0,
+            "has_idempotency_key": idempotency_key is not None,
+        })
+        return result
 
 
 # --------------------------------------------------------------------------- #
@@ -110,7 +127,7 @@ class _AsyncTemplates(_AsyncResource):
 
 
 class _AsyncSequences(_AsyncResource):
-    async def list(self) -> List[t.SequenceSummary]:
+    async def list(self) -> builtins.list[t.SequenceSummary]:
         body = await self._t.request("GET", "/v1/sequences")
         items = body if isinstance(body, list) else body.get("data", [])
         return [t.SequenceSummary.model_validate(x) for x in items]
@@ -125,11 +142,11 @@ class _AsyncSequences(_AsyncResource):
         key_or_id: str,
         *,
         contact: Mapping[str, Any],
-        variables: Optional[Mapping[str, Any]] = None,
-        start_at_step: Optional[str] = None,
-        idempotency_key: Optional[str] = None,
+        variables: Mapping[str, Any] | None = None,
+        start_at_step: str | None = None,
+        idempotency_key: str | None = None,
     ) -> t.EnrollResult:
-        return t.EnrollResult.model_validate(
+        result = t.EnrollResult.model_validate(
             await self._t.request(
                 "POST",
                 f"/v1/sequences/{key_or_id}/enroll",
@@ -141,6 +158,12 @@ class _AsyncSequences(_AsyncResource):
                 idempotency_key=idempotency_key,
             )
         )
+        _telemetry.capture(self._t._api_key, "sequence_enrolled", {
+            "has_variables": variables is not None,
+            "has_start_at_step": start_at_step is not None,
+            "has_idempotency_key": idempotency_key is not None,
+        })
+        return result
 
 
 class _AsyncSequenceRuns(_AsyncResource):
@@ -160,13 +183,13 @@ class _AsyncEvents(_AsyncResource):
         self,
         name: str,
         *,
-        user_id: Optional[str] = None,
-        email: Optional[str] = None,
-        traits: Optional[Mapping[str, Any]] = None,
-        occurred_at: Optional[str] = None,
-        idempotency_key: Optional[str] = None,
+        user_id: str | None = None,
+        email: str | None = None,
+        traits: Mapping[str, Any] | None = None,
+        occurred_at: str | None = None,
+        idempotency_key: str | None = None,
     ) -> t.EmitEventResult:
-        return t.EmitEventResult.model_validate(
+        result = t.EmitEventResult.model_validate(
             await self._t.request(
                 "POST",
                 "/v1/events",
@@ -180,6 +203,13 @@ class _AsyncEvents(_AsyncResource):
                 idempotency_key=idempotency_key,
             )
         )
+        _telemetry.capture(self._t._api_key, "event_emitted", {
+            "has_user_id": user_id is not None,
+            "has_traits": traits is not None,
+            "has_occurred_at": occurred_at is not None,
+            "trait_count": len(traits) if traits else 0,
+        })
+        return result
 
 
 # --------------------------------------------------------------------------- #
@@ -188,7 +218,7 @@ class _AsyncEvents(_AsyncResource):
 
 
 class _AsyncWebhooks(_AsyncResource):
-    async def list(self) -> List[t.WebhookSubscription]:
+    async def list(self) -> builtins.list[t.WebhookSubscription]:
         body = await self._t.request("GET", "/v1/webhooks")
         items = body if isinstance(body, list) else body.get("data", [])
         return [t.WebhookSubscription.model_validate(x) for x in items]
@@ -202,24 +232,29 @@ class _AsyncWebhooks(_AsyncResource):
         self,
         *,
         url: str,
-        events: Optional[List[str]] = None,
-        description: Optional[str] = None,
+        events: builtins.list[str] | None = None,
+        description: str | None = None,
     ) -> t.WebhookSubscription:
-        return t.WebhookSubscription.model_validate(
+        result = t.WebhookSubscription.model_validate(
             await self._t.request(
                 "POST",
                 "/v1/webhooks",
                 json={"url": url, "events": events, "description": description},
             )
         )
+        _telemetry.capture(self._t._api_key, "webhook_created", {
+            "event_count": len(events) if events else 0,
+            "has_description": description is not None,
+        })
+        return result
 
     async def update(
         self,
         webhook_id: str,
         *,
-        events: Optional[List[str]] = None,
-        description: Optional[str] = None,
-        disabled: Optional[bool] = None,
+        events: builtins.list[str] | None = None,
+        description: str | None = None,
+        disabled: bool | None = None,
     ) -> t.WebhookSubscription:
         body: dict[str, Any] = {}
         if events is not None:
@@ -234,12 +269,13 @@ class _AsyncWebhooks(_AsyncResource):
 
     async def delete(self, webhook_id: str) -> None:
         await self._t.request("DELETE", f"/v1/webhooks/{webhook_id}")
+        _telemetry.capture(self._t._api_key, "webhook_deleted", {})
 
 
 class _AsyncAudit(_AsyncResource):
     async def list(
-        self, *, limit: int = 100, cursor: Optional[str] = None
-    ) -> tuple[List[t.AuditEntry], Optional[str]]:
+        self, *, limit: int = 100, cursor: str | None = None
+    ) -> tuple[builtins.list[t.AuditEntry], str | None]:
         body = await self._t.request(
             "GET",
             "/v1/audit",
@@ -252,7 +288,7 @@ class _AsyncAudit(_AsyncResource):
         )
 
     async def iter(self, *, page_size: int = 100) -> AsyncIterator[t.AuditEntry]:
-        cursor: Optional[str] = None
+        cursor: str | None = None
         while True:
             entries, cursor = await self.list(limit=page_size, cursor=cursor)
             for e in entries:
@@ -285,15 +321,17 @@ class AsyncMailGenius:
     def __init__(
         self,
         *,
-        api_key: Optional[str] = None,
-        base_url: Optional[str] = None,
+        api_key: str | None = None,
+        base_url: str | None = None,
         max_retries: int = 3,
-        transport: Optional[AsyncTransport] = None,
+        transport: AsyncTransport | None = None,
     ) -> None:
+        resolved_key = resolve_api_key(api_key)
+        resolved_base = resolve_base_url(base_url)
         if transport is None:
             transport = AsyncTransport(
-                resolve_api_key(api_key),
-                base_url=resolve_base_url(base_url),
+                resolved_key,
+                base_url=resolved_base,
                 max_retries=max_retries,
             )
         self._transport = transport
@@ -305,11 +343,16 @@ class AsyncMailGenius:
         self.events = _AsyncEvents(transport)
         self.webhooks = _AsyncWebhooks(transport)
         self.audit = _AsyncAudit(transport)
+        _telemetry.capture(resolved_key, "sdk_client_initialized", {
+            "client": "async",
+            "has_custom_base_url": bool(base_url),
+            "max_retries": max_retries,
+        })
 
     async def aclose(self) -> None:
         await self._transport.aclose()
 
-    async def __aenter__(self) -> "AsyncMailGenius":
+    async def __aenter__(self) -> AsyncMailGenius:
         return self
 
     async def __aexit__(self, *exc_info: Any) -> None:

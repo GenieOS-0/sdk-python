@@ -17,8 +17,11 @@ import hashlib
 import hmac
 import json
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Dict, Mapping, Optional, Union
+from typing import Any
+
+from . import _telemetry
 
 DEFAULT_TOLERANCE_SECONDS = 300
 
@@ -39,12 +42,12 @@ class VerifiedDelivery:
     type: str
     workspace_id: str
     created_at: str
-    data: Dict[str, Any]
+    data: dict[str, Any]
     raw_body: str
     timestamp: int
 
 
-def _coerce_body(body: Union[str, bytes, bytearray]) -> str:
+def _coerce_body(body: str | bytes | bytearray) -> str:
     if isinstance(body, (bytes, bytearray)):
         return bytes(body).decode("utf-8")
     return body
@@ -68,7 +71,7 @@ def _coerce_signature(headers: Mapping[str, Any], header_name: str) -> str:
 
 
 def _parse_signature_header(header_value: str) -> tuple[int, list[str]]:
-    timestamp: Optional[int] = None
+    timestamp: int | None = None
     sigs: list[str] = []
     for part in header_value.split(","):
         if "=" not in part:
@@ -94,13 +97,13 @@ def _hmac_hex(secret: str, payload: str) -> str:
 
 
 def verify_webhook(
-    raw_body: Union[str, bytes, bytearray],
+    raw_body: str | bytes | bytearray,
     headers: Mapping[str, Any],
     secret: str,
     *,
     tolerance_seconds: int = DEFAULT_TOLERANCE_SECONDS,
     header_name: str = "X-MailGenius-Signature",
-    now: Optional[float] = None,
+    now: float | None = None,
 ) -> VerifiedDelivery:
     """Verify and parse a MailGenius webhook delivery.
 
@@ -109,50 +112,67 @@ def verify_webhook(
     ±5 minutes matches the upstream signer in
     ``functions/src/lib/webhookDelivery.ts``.
     """
-    body = _coerce_body(raw_body)
-    sig_header = _coerce_signature(headers, header_name)
-    timestamp, sigs = _parse_signature_header(sig_header)
-
-    now_ts = int(now if now is not None else time.time())
-    if abs(now_ts - timestamp) > tolerance_seconds:
-        raise WebhookSignatureError(
-            f"Timestamp {timestamp} outside tolerance window of {tolerance_seconds}s"
-        )
-
-    expected = _hmac_hex(secret, f"{timestamp}.{body}")
-    if not any(hmac.compare_digest(expected, s) for s in sigs):
-        raise WebhookSignatureError("Signature mismatch")
-
     try:
-        envelope = json.loads(body)
-    except json.JSONDecodeError as e:
-        raise WebhookSignatureError(f"Webhook body is not JSON: {e}") from e
-    if not isinstance(envelope, dict):
-        raise WebhookSignatureError("Webhook body must be a JSON object")
+        body = _coerce_body(raw_body)
+        sig_header = _coerce_signature(headers, header_name)
+        timestamp, sigs = _parse_signature_header(sig_header)
 
-    required = {"id", "type", "workspaceId", "createdAt", "data"}
-    missing = required - envelope.keys()
-    if missing:
-        raise WebhookSignatureError(
-            f"Webhook envelope missing required fields: {sorted(missing)}"
+        now_ts = int(now if now is not None else time.time())
+        if abs(now_ts - timestamp) > tolerance_seconds:
+            raise WebhookSignatureError(
+                f"Timestamp {timestamp} outside tolerance window of {tolerance_seconds}s"
+            )
+
+        expected = _hmac_hex(secret, f"{timestamp}.{body}")
+        if not any(hmac.compare_digest(expected, s) for s in sigs):
+            raise WebhookSignatureError("Signature mismatch")
+
+        try:
+            envelope = json.loads(body)
+        except json.JSONDecodeError as e:
+            raise WebhookSignatureError(f"Webhook body is not JSON: {e}") from e
+        if not isinstance(envelope, dict):
+            raise WebhookSignatureError("Webhook body must be a JSON object")
+
+        required = {"id", "type", "workspaceId", "createdAt", "data"}
+        missing = required - envelope.keys()
+        if missing:
+            raise WebhookSignatureError(
+                f"Webhook envelope missing required fields: {sorted(missing)}"
+            )
+
+        result = VerifiedDelivery(
+            id=str(envelope["id"]),
+            type=str(envelope["type"]),
+            workspace_id=str(envelope["workspaceId"]),
+            created_at=str(envelope["createdAt"]),
+            data=dict(envelope["data"]),
+            raw_body=body,
+            timestamp=timestamp,
         )
+        _telemetry.capture(
+            "",
+            "webhook_verified",
+            {"event_type": result.type},
+            distinct_id=_telemetry.ANONYMOUS_DISTINCT_ID,
+        )
+        return result
 
-    return VerifiedDelivery(
-        id=str(envelope["id"]),
-        type=str(envelope["type"]),
-        workspace_id=str(envelope["workspaceId"]),
-        created_at=str(envelope["createdAt"]),
-        data=dict(envelope["data"]),
-        raw_body=body,
-        timestamp=timestamp,
-    )
+    except WebhookSignatureError as exc:
+        _telemetry.capture(
+            "",
+            "webhook_signature_error",
+            {"reason": str(exc)},
+            distinct_id=_telemetry.ANONYMOUS_DISTINCT_ID,
+        )
+        raise
 
 
 def sign_webhook(
     raw_body: str,
     secret: str,
     *,
-    timestamp: Optional[int] = None,
+    timestamp: int | None = None,
 ) -> str:
     """Produce the signature header value for ``raw_body``.
 
