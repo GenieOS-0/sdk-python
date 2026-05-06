@@ -1,8 +1,8 @@
-# mailgenius — Python SDK
+# genieos — Python SDK
 
-[![PyPI version](https://img.shields.io/pypi/v/mailgenius.svg)](https://pypi.org/project/mailgenius)
+[![PyPI version](https://img.shields.io/pypi/v/mailgenius.svg)](https://pypi.org/project/genieos)
 
-The official Python SDK for [MailGenius](https://mailgenius.pro). Sync and
+The official Python SDK for [GenieOS](https://genieos.pro). Sync and
 async clients, typed responses (Pydantic), automatic idempotency,
 retry-on-429/5xx with exponential back-off, and webhook signature
 verification.
@@ -10,7 +10,7 @@ verification.
 ## Install
 
 ```bash
-pip install mailgenius
+pip install genieos
 ```
 
 Requires Python 3.9+ and `httpx>=0.27`, `pydantic>=2.6`.
@@ -18,9 +18,9 @@ Requires Python 3.9+ and `httpx>=0.27`, `pydantic>=2.6`.
 ## Quickstart (sync)
 
 ```python
-from mailgenius import MailGenius
+from genieos import GenieOS
 
-with MailGenius(api_key="mg_live_...") as mg:
+with GenieOS(api_key="mg_live_...") as mg:
     ws = mg.workspace.get()
     print(ws.name, "on", ws.plan)
 
@@ -39,7 +39,7 @@ matching the Node SDK and CLI.
 
 ```python
 import asyncio
-from mailgenius import AsyncMailGenius
+from genieos import AsyncMailGenius
 
 async def main():
     async with AsyncMailGenius() as mg:  # MAILGENIUS_API_KEY env var
@@ -56,11 +56,11 @@ asyncio.run(main())
 
 ```python
 from flask import Flask, request, abort
-from mailgenius import verify_webhook, WebhookSignatureError
+from genieos import verify_webhook, WebhookSignatureError
 
 app = Flask(__name__)
 
-@app.post("/mailgenius/webhook")
+@app.post("/genieos/webhook")
 def webhook():
     try:
         delivery = verify_webhook(
@@ -83,7 +83,7 @@ performs constant-time signature comparison. The same module exposes
 ## Error handling
 
 ```python
-from mailgenius import (
+from genieos import (
     MailGeniusRateLimitError,
     MailGeniusValidationError,
     MailGeniusAuthError,

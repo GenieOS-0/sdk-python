@@ -1,13 +1,13 @@
 name: Release
 
-# Tag-driven publish for the `mailgenius` Python SDK to PyPI.
+# Tag-driven publish for the `genieos` Python SDK to PyPI.
 #
 #   git tag v0.1.1
 #   git push origin v0.1.1
 #
 # The tag value should match the `version` field in pyproject.toml. Uses
 # PyPI Trusted Publishing (OIDC) — configure the publisher at:
-#   https://pypi.org/manage/project/mailgenius/settings/publishing/
+#   https://pypi.org/manage/project/genieos/settings/publishing/
 # with workflow filename `release.yml`, environment left blank.
 
 on:

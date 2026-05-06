@@ -1,10 +1,10 @@
-# mailgenius (Python SDK)
+# genieos (Python SDK)
 
 ## 0.1.0
 
 Initial release.
 
-- `MailGenius` (sync) and `AsyncMailGenius` (async) clients on top of `httpx`.
+- `GenieOS` (sync) and `AsyncMailGenius` (async) clients on top of `httpx`.
 - Pydantic v2 models for typed responses.
 - Auto idempotency keys; retry-on-429/5xx with exponential back-off.
 - Resources: `workspace`, `templates`, `events`, `webhooks`, `audit`, `keys`.
