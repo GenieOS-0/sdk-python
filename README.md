@@ -17,14 +17,18 @@ Requires Python 3.9+ and `httpx>=0.27`, `pydantic>=2.6`.
 
 ## Quickstart (sync)
 
+API keys are minted in **Settings → API keys**. Production keys look like
+`gos_live_…`; sandbox keys look like `gos_test_…`. Put the secret in
+`GENIEOS_API_KEY` (never commit it).
+
 ```python
 from genieos import GenieOS
 
-with GenieOS(api_key="gos_live_...") as mg:
-    ws = mg.workspace.get()
+with GenieOS(api_key="gos_live_...") as gos:
+    ws = gos.workspace.get()
     print(ws.name, "on", ws.plan)
 
-    send = mg.templates.send(
+    send = gos.templates.send(
         "welcome",
         to="aki@example.com",
         variables={"firstName": "Aki"},
@@ -42,8 +46,8 @@ import asyncio
 from genieos import AsyncGenieOS
 
 async def main():
-    async with AsyncGenieOS() as mg:  # MAILGENIUS_API_KEY env var
-        await mg.events.emit(
+    async with AsyncGenieOS() as gos:  # GENIEOS_API_KEY env var
+        await gos.events.emit(
             "subscription.cancelled",
             email="aki@example.com",
             traits={"tier": "pro", "reason": "moving to weekly"},
@@ -55,6 +59,7 @@ asyncio.run(main())
 ## Webhook verification (Flask)
 
 ```python
+import os
 from flask import Flask, request, abort
 from genieos import verify_webhook, WebhookSignatureError
 
@@ -66,7 +71,7 @@ def webhook():
         delivery = verify_webhook(
             request.get_data(as_text=True),
             request.headers,
-            secret=os.environ["MAILGENIUS_WEBHOOK_SECRET"],
+            secret=os.environ["GENIEOS_WEBHOOK_SECRET"],
         )
     except WebhookSignatureError as e:
         abort(400, str(e))
@@ -90,7 +95,7 @@ from genieos import (
 )
 
 try:
-    mg.events.emit("checkout.completed", email="aki@example.com")
+    gos.events.emit("checkout.completed", email="aki@example.com")
 except GenieOSRateLimitError as e:
     time.sleep(e.retry_after_seconds)
 except GenieOSValidationError as e:

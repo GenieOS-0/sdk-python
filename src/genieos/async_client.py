@@ -61,6 +61,18 @@ class _AsyncTemplates(_AsyncResource):
             await self._t.request("GET", f"/v1/templates/{key}")
         )
 
+    async def create(self, **body: Any) -> dict[str, Any]:
+        """Create a blank draft email template."""
+        result = await self._t.request("POST", "/v1/templates", json=body)
+        return result.get("data", result) if isinstance(result, dict) else result
+
+    async def compose(self, *, prompt: str, **body: Any) -> dict[str, Any]:
+        """Compose from a brief and persist. Charges compose-template credits."""
+        result = await self._t.request(
+            "POST", "/v1/templates/compose", json={"prompt": prompt, **body}
+        )
+        return result.get("data", result) if isinstance(result, dict) else result
+
     async def get_schema(self, key: str) -> t.TemplateSchema:
         return t.TemplateSchema.model_validate(
             await self._t.request("GET", f"/v1/templates/{key}/schema")
@@ -305,6 +317,32 @@ class _AsyncPages(_AsyncResource):
             await self._t.request("GET", f"/v1/pages/{id_or_slug}")
         )
 
+    async def compose(
+        self, id_or_slug: str, *, intake: dict[str, Any], persist: bool = True, **fields: Any
+    ) -> dict[str, Any]:
+        payload = {"intake": intake, "persist": persist, **fields}
+        result = await self._t.request(
+            "POST", f"/v1/pages/{id_or_slug}/compose", json=payload
+        )
+        return result if isinstance(result, dict) else {}
+
+    async def publish(self, id_or_slug: str, *, slug: str | None = None) -> dict[str, Any]:
+        payload: dict[str, Any] = {}
+        if slug is not None:
+            payload["slug"] = slug
+        body = await self._t.request(
+            "POST", f"/v1/pages/{id_or_slug}/publish", json=payload
+        )
+        if isinstance(body, dict) and "data" in body:
+            return body["data"]
+        return body if isinstance(body, dict) else {}
+
+    async def unpublish(self, id_or_slug: str) -> dict[str, Any]:
+        result = await self._t.request(
+            "POST", f"/v1/pages/{id_or_slug}/unpublish", json={}
+        )
+        return result if isinstance(result, dict) else {}
+
 
 class _AsyncAudit(_AsyncResource):
     async def list(
@@ -331,6 +369,456 @@ class _AsyncAudit(_AsyncResource):
                 return
 
 
+class _AsyncMessaging(_AsyncResource):
+    async def kit(self) -> builtins.list[dict[str, Any]]:
+        body = await self._t.request("GET", "/v1/messaging/transactional/kit")
+        items = body if isinstance(body, list) else body.get("data", [])
+        return list(items)
+
+    async def catalog(self) -> builtins.list[dict[str, Any]]:
+        body = await self._t.request("GET", "/v1/messaging/transactional/catalog")
+        items = body if isinstance(body, list) else body.get("data", [])
+        return list(items)
+
+    async def preview(
+        self,
+        template_key: str,
+        *,
+        body_template: str | None = None,
+        variables: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {"templateKey": template_key}
+        if body_template is not None:
+            payload["bodyTemplate"] = body_template
+        if variables is not None:
+            payload["variables"] = dict(variables)
+        result = await self._t.request(
+            "POST", "/v1/messaging/transactional/preview", json=payload
+        )
+        return result if isinstance(result, dict) else {}
+
+    async def send(
+        self,
+        template_key: str,
+        *,
+        to: str | None = None,
+        recipient_id: str | None = None,
+        variables: Mapping[str, Any] | None = None,
+        idempotency_key: str | None = None,
+        consent_proof_id: str | None = None,
+        allow_extra_segments: bool | None = None,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {"templateKey": template_key}
+        if to is not None:
+            payload["to"] = to
+        if recipient_id is not None:
+            payload["recipientId"] = recipient_id
+        if variables is not None:
+            payload["variables"] = dict(variables)
+        if consent_proof_id is not None:
+            payload["consentProofId"] = consent_proof_id
+        if allow_extra_segments is not None:
+            payload["allowExtraSegments"] = allow_extra_segments
+        result = await self._t.request(
+            "POST",
+            "/v1/messaging/transactional",
+            json=payload,
+            idempotency_key=idempotency_key,
+        )
+        return result if isinstance(result, dict) else {}
+
+    async def list_deliveries(
+        self, *, template_key: str | None = None, limit: int = 50
+    ) -> builtins.list[dict[str, Any]]:
+        params: dict[str, Any] = {"limit": limit}
+        if template_key is not None:
+            params["templateKey"] = template_key
+        body = await self._t.request(
+            "GET", "/v1/messaging/transactional/deliveries", params=params
+        )
+        if isinstance(body, list):
+            return list(body)
+        return list(body.get("data", []))
+
+
+class _AsyncTransactionalSocial(_AsyncResource):
+    async def catalog(self) -> builtins.list[dict[str, Any]]:
+        body = await self._t.request("GET", "/v1/social/transactional/catalog")
+        items = body if isinstance(body, list) else body.get("data", [])
+        return list(items)
+
+    async def list_templates(self) -> builtins.list[dict[str, Any]]:
+        body = await self._t.request("GET", "/v1/social/transactional/templates")
+        items = body if isinstance(body, list) else body.get("data", [])
+        return list(items)
+
+    async def preview(
+        self,
+        event_key: str,
+        *,
+        variables: Mapping[str, Any] | None = None,
+        channels: builtins.list[str] | None = None,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {"eventKey": event_key}
+        if variables is not None:
+            payload["variables"] = dict(variables)
+        if channels is not None:
+            payload["channels"] = channels
+        result = await self._t.request(
+            "POST", "/v1/social/transactional/preview", json=payload
+        )
+        return result if isinstance(result, dict) else {}
+
+    async def trigger(
+        self,
+        event_key: str,
+        *,
+        mode: str | None = None,
+        variables: Mapping[str, Any] | None = None,
+        channels: builtins.list[str] | None = None,
+        idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {"eventKey": event_key}
+        if mode is not None:
+            payload["mode"] = mode
+        if variables is not None:
+            payload["variables"] = dict(variables)
+        if channels is not None:
+            payload["channels"] = channels
+        result = await self._t.request(
+            "POST",
+            "/v1/social/transactional/events",
+            json=payload,
+            idempotency_key=idempotency_key,
+        )
+        return result if isinstance(result, dict) else {}
+
+    async def list_events(
+        self, *, event_key: str | None = None, limit: int = 50
+    ) -> builtins.list[dict[str, Any]]:
+        params: dict[str, Any] = {"limit": limit}
+        if event_key is not None:
+            params["eventKey"] = event_key
+        body = await self._t.request(
+            "GET", "/v1/social/transactional/events", params=params
+        )
+        items = body if isinstance(body, list) else body.get("data", [])
+        return list(items)
+
+
+class _AsyncSocial(_AsyncResource):
+    def __init__(self, transport: AsyncTransport) -> None:
+        super().__init__(transport)
+        self.transactional = _AsyncTransactionalSocial(transport)
+
+    async def list_networks(self) -> dict[str, Any]:
+        result = await self._t.request("GET", "/v1/social/networks")
+        return result if isinstance(result, dict) else {"networks": []}
+
+    async def refresh_networks(self) -> dict[str, Any]:
+        result = await self._t.request("POST", "/v1/social/networks/refresh")
+        return result if isinstance(result, dict) else {}
+
+    async def list(
+        self,
+        *,
+        status: str | None = None,
+        channel_id: str | None = None,
+        group_id: str | None = None,
+        limit: int = 25,
+    ) -> builtins.list[dict[str, Any]]:
+        params: dict[str, Any] = {"limit": limit}
+        if status is not None:
+            params["status"] = status
+        if channel_id is not None:
+            params["channelId"] = channel_id
+        if group_id is not None:
+            params["groupId"] = group_id
+        body = await self._t.request("GET", "/v1/social/posts", params=params)
+        items = body if isinstance(body, list) else body.get("data", [])
+        return list(items)
+
+    async def get(self, post_id: str) -> dict[str, Any]:
+        body = await self._t.request("GET", f"/v1/social/posts/{post_id}")
+        if isinstance(body, dict) and "data" in body:
+            return body["data"]
+        return body if isinstance(body, dict) else {}
+
+    async def create(self, **body: Any) -> dict[str, Any]:
+        idem = body.pop("idempotency_key", None)
+        result = await self._t.request(
+            "POST",
+            "/v1/social/posts",
+            json=body,
+            idempotency_key=idem if isinstance(idem, str) else None,
+        )
+        return result if isinstance(result, dict) else {}
+
+    async def update(self, post_id: str, **body: Any) -> dict[str, Any]:
+        result = await self._t.request(
+            "PATCH", f"/v1/social/posts/{post_id}", json=body
+        )
+        if isinstance(result, dict) and "data" in result:
+            return result["data"]
+        return result if isinstance(result, dict) else {}
+
+    async def schedule(
+        self,
+        post_id: str,
+        scheduled_at: str,
+        *,
+        target_account_ref: str | None = None,
+        idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {"scheduledAt": scheduled_at}
+        if target_account_ref is not None:
+            payload["targetAccountRef"] = target_account_ref
+        result = await self._t.request(
+            "POST",
+            f"/v1/social/posts/{post_id}/schedule",
+            json=payload,
+            idempotency_key=idempotency_key,
+        )
+        return result if isinstance(result, dict) else {}
+
+    async def publish(
+        self,
+        post_id: str,
+        *,
+        target_account_ref: str | None = None,
+        idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {}
+        if target_account_ref is not None:
+            payload["targetAccountRef"] = target_account_ref
+        result = await self._t.request(
+            "POST",
+            f"/v1/social/posts/{post_id}/publish",
+            json=payload,
+            idempotency_key=idempotency_key,
+        )
+        return result if isinstance(result, dict) else {}
+
+    async def delete(
+        self, post_id: str, *, from_provider: bool = False
+    ) -> dict[str, Any]:
+        params = {"fromProvider": "true"} if from_provider else None
+        result = await self._t.request(
+            "DELETE", f"/v1/social/posts/{post_id}", params=params
+        )
+        return result if isinstance(result, dict) else {}
+
+    async def analytics(
+        self, post_id: str, *, refresh: bool = False
+    ) -> dict[str, Any]:
+        params = {"refresh": "true"} if refresh else None
+        result = await self._t.request(
+            "GET", f"/v1/social/posts/{post_id}/analytics", params=params
+        )
+        return result if isinstance(result, dict) else {}
+
+
+class _AsyncMarketing(_AsyncResource):
+    async def strategy(self, *, detail: str | None = None) -> dict[str, Any]:
+        params = {"detail": "full"} if detail == "full" else None
+        result = await self._t.request("GET", "/v1/marketing/strategy", params=params)
+        return result if isinstance(result, dict) else {}
+
+    async def list_icps(self, *, detail: str | None = None) -> builtins.list[dict[str, Any]]:
+        params = {"detail": "full"} if detail == "full" else None
+        body = await self._t.request("GET", "/v1/marketing/icps", params=params)
+        items = body if isinstance(body, list) else body.get("data", [])
+        return list(items)
+
+    async def get_icp(self, icp_id: str) -> dict[str, Any]:
+        body = await self._t.request("GET", f"/v1/marketing/icps/{icp_id}")
+        if isinstance(body, dict) and "data" in body:
+            return body["data"]
+        return body if isinstance(body, dict) else {}
+
+    async def creation_defaults(self) -> dict[str, Any]:
+        body = await self._t.request("GET", "/v1/marketing/creation-defaults")
+        if isinstance(body, dict) and "data" in body:
+            return body["data"]
+        return body if isinstance(body, dict) else {}
+
+    async def patch_strategy(self, patch: dict[str, Any]) -> dict[str, Any]:
+        result = await self._t.request(
+            "PATCH", "/v1/marketing/strategy", json={"patch": patch}
+        )
+        return result if isinstance(result, dict) else {}
+
+    async def set_creation_defaults(self, **fields: Any) -> dict[str, Any]:
+        result = await self._t.request(
+            "PATCH", "/v1/marketing/creation-defaults", json=fields
+        )
+        return result if isinstance(result, dict) else {}
+
+    async def create_icp(self, **fields: Any) -> dict[str, Any]:
+        result = await self._t.request("POST", "/v1/marketing/icps", json=fields)
+        return result if isinstance(result, dict) else {}
+
+    async def update_icp(self, icp_id: str, **fields: Any) -> dict[str, Any]:
+        result = await self._t.request(
+            "PATCH", f"/v1/marketing/icps/{icp_id}", json=fields
+        )
+        return result if isinstance(result, dict) else {}
+
+
+class _AsyncCreations(_AsyncResource):
+    async def list(
+        self, *, status: str | None = None, limit: int = 25
+    ) -> builtins.list[dict[str, Any]]:
+        params: dict[str, Any] = {"limit": limit}
+        if status is not None:
+            params["status"] = status
+        body = await self._t.request("GET", "/v1/creations", params=params)
+        items = body if isinstance(body, list) else body.get("data", [])
+        return list(items)
+
+    async def get(
+        self, creation_id: str, *, detail: str | None = None
+    ) -> dict[str, Any]:
+        params = {"detail": "full"} if detail == "full" else None
+        body = await self._t.request(
+            "GET", f"/v1/creations/{creation_id}", params=params
+        )
+        if isinstance(body, dict) and "data" in body:
+            return body["data"]
+        return body if isinstance(body, dict) else {}
+
+    async def spawn(
+        self, brief: str, *, idempotency_key: str | None = None, **fields: Any
+    ) -> dict[str, Any]:
+        payload = {"brief": brief, **fields}
+        result = await self._t.request(
+            "POST",
+            "/v1/creations",
+            json=payload,
+            idempotency_key=idempotency_key,
+        )
+        return result if isinstance(result, dict) else {}
+
+    async def approve_strategy(self, creation_id: str) -> dict[str, Any]:
+        result = await self._t.request(
+            "POST", f"/v1/creations/{creation_id}/approve-strategy", json={}
+        )
+        return result if isinstance(result, dict) else {}
+
+
+class _AsyncLists(_AsyncResource):
+    async def list(self) -> builtins.list[dict[str, Any]]:
+        body = await self._t.request("GET", "/v1/lists")
+        items = body if isinstance(body, list) else body.get("data", [])
+        return list(items)
+
+    async def get(self, list_id: str) -> dict[str, Any]:
+        body = await self._t.request("GET", f"/v1/lists/{list_id}")
+        if isinstance(body, dict) and "data" in body:
+            return body["data"]
+        return body if isinstance(body, dict) else {}
+
+    async def create(self, name: str, **fields: Any) -> dict[str, Any]:
+        body = await self._t.request(
+            "POST", "/v1/lists", json={"name": name, **fields}
+        )
+        if isinstance(body, dict) and "data" in body:
+            return body["data"]
+        return body if isinstance(body, dict) else {}
+
+    async def update(self, list_id: str, **fields: Any) -> dict[str, Any]:
+        body = await self._t.request(
+            "PATCH", f"/v1/lists/{list_id}", json=fields
+        )
+        if isinstance(body, dict) and "data" in body:
+            return body["data"]
+        return body if isinstance(body, dict) else {}
+
+    async def delete(self, list_id: str) -> dict[str, Any]:
+        result = await self._t.request("DELETE", f"/v1/lists/{list_id}")
+        return result if isinstance(result, dict) else {}
+
+    async def add_members(
+        self, list_id: str, contact_ids: builtins.list[str]
+    ) -> dict[str, Any]:
+        body = await self._t.request(
+            "POST",
+            f"/v1/lists/{list_id}/members",
+            json={"contactIds": contact_ids},
+        )
+        if isinstance(body, dict) and "data" in body:
+            return body["data"]
+        return body if isinstance(body, dict) else {}
+
+    async def remove_members(
+        self, list_id: str, contact_ids: builtins.list[str]
+    ) -> dict[str, Any]:
+        body = await self._t.request(
+            "POST",
+            f"/v1/lists/{list_id}/members/remove",
+            json={"contactIds": contact_ids},
+        )
+        if isinstance(body, dict) and "data" in body:
+            return body["data"]
+        return body if isinstance(body, dict) else {}
+
+
+class _AsyncApprovals(_AsyncResource):
+    async def list_policies(self) -> builtins.list[dict[str, Any]]:
+        body = await self._t.request("GET", "/v1/approvals/policies")
+        items = body if isinstance(body, list) else body.get("data", [])
+        return list(items)
+
+    async def list_pending(self, *, limit: int = 25) -> builtins.list[dict[str, Any]]:
+        body = await self._t.request(
+            "GET", "/v1/approvals/pending", params={"limit": limit}
+        )
+        items = body if isinstance(body, list) else body.get("data", [])
+        return list(items)
+
+    async def manage_policy(self, surface_kind: str, **fields: Any) -> dict[str, Any]:
+        result = await self._t.request(
+            "PUT", f"/v1/approvals/policies/{surface_kind}", json=fields
+        )
+        return result if isinstance(result, dict) else {}
+
+    async def decide(
+        self,
+        request_id: str,
+        *,
+        decision: str,
+        acting_as_member_uid: str,
+        comment: str | None = None,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "decision": decision,
+            "actingAsMemberUid": acting_as_member_uid,
+        }
+        if comment is not None:
+            payload["comment"] = comment
+        result = await self._t.request(
+            "POST",
+            f"/v1/approvals/pending/{request_id}/decide",
+            json=payload,
+        )
+        return result if isinstance(result, dict) else {}
+
+
+class _AsyncLinks(_AsyncResource):
+    async def create(
+        self, destination_url: str, *, idempotency_key: str | None = None, **fields: Any
+    ) -> dict[str, Any]:
+        body = await self._t.request(
+            "POST",
+            "/v1/links",
+            json={"destinationUrl": destination_url, **fields},
+            idempotency_key=idempotency_key,
+        )
+        if isinstance(body, dict) and "data" in body:
+            return body["data"]
+        return body if isinstance(body, dict) else {}
+
+
 # --------------------------------------------------------------------------- #
 # Top-level async client
 # --------------------------------------------------------------------------- #
@@ -343,9 +831,9 @@ class AsyncGenieOS:
 
         from genieos import AsyncGenieOS
 
-        async with AsyncGenieOS(api_key="gos_live_...") as mg:
-            await mg.events.emit("user.signed_up", email="aki@example.com")
-            send = await mg.templates.send(
+        async with AsyncGenieOS(api_key="gos_live_...") as gos:  # or GENIEOS_API_KEY
+            await gos.events.emit("user.signed_up", email="aki@example.com")
+            send = await gos.templates.send(
                 "welcome",
                 to="aki@example.com",
                 variables={"firstName": "Aki"},
@@ -380,6 +868,14 @@ class AsyncGenieOS:
         self.connectors = _AsyncConnectors(transport)
         self.pages = _AsyncPages(transport)
         self.audit = _AsyncAudit(transport)
+        self.messaging = _AsyncMessaging(transport)
+        self.sms = self.messaging
+        self.social = _AsyncSocial(transport)
+        self.marketing = _AsyncMarketing(transport)
+        self.creations = _AsyncCreations(transport)
+        self.lists = _AsyncLists(transport)
+        self.approvals = _AsyncApprovals(transport)
+        self.links = _AsyncLinks(transport)
         _telemetry.capture(resolved_key, "sdk_client_initialized", {
             "client": "async",
             "has_custom_base_url": bool(base_url),

@@ -62,6 +62,18 @@ class _Templates(_Resource):
     def get(self, key: str) -> t.Template:
         return t.Template.model_validate(self._t.request("GET", f"/v1/templates/{key}"))
 
+    def create(self, **body: Any) -> dict[str, Any]:
+        """Create a blank draft email template."""
+        result = self._t.request("POST", "/v1/templates", json=body)
+        return result.get("data", result) if isinstance(result, dict) else result
+
+    def compose(self, *, prompt: str, **body: Any) -> dict[str, Any]:
+        """Compose from a brief and persist. Charges compose-template credits."""
+        result = self._t.request(
+            "POST", "/v1/templates/compose", json={"prompt": prompt, **body}
+        )
+        return result.get("data", result) if isinstance(result, dict) else result
+
     def get_schema(self, key: str) -> t.TemplateSchema:
         return t.TemplateSchema.model_validate(
             self._t.request("GET", f"/v1/templates/{key}/schema")
@@ -305,6 +317,31 @@ class _Pages(_Resource):
         )
 
 
+    def compose(self, id_or_slug: str, *, intake: dict[str, Any], persist: bool = True, **fields: Any) -> dict[str, Any]:
+        payload = {"intake": intake, "persist": persist, **fields}
+        result = self._t.request(
+            "POST", f"/v1/pages/{id_or_slug}/compose", json=payload
+        )
+        return result if isinstance(result, dict) else {}
+
+    def publish(self, id_or_slug: str, *, slug: str | None = None) -> dict[str, Any]:
+        payload: dict[str, Any] = {}
+        if slug is not None:
+            payload["slug"] = slug
+        body = self._t.request(
+            "POST", f"/v1/pages/{id_or_slug}/publish", json=payload
+        )
+        if isinstance(body, dict) and "data" in body:
+            return body["data"]
+        return body if isinstance(body, dict) else {}
+
+    def unpublish(self, id_or_slug: str) -> dict[str, Any]:
+        result = self._t.request(
+            "POST", f"/v1/pages/{id_or_slug}/unpublish", json={}
+        )
+        return result if isinstance(result, dict) else {}
+
+
 class _Audit(_Resource):
     def list(
         self, *, limit: int = 100, cursor: str | None = None
@@ -330,6 +367,453 @@ class _Audit(_Resource):
 
 
 # --------------------------------------------------------------------------- #
+# Messaging (transactional SMS) + Social
+# --------------------------------------------------------------------------- #
+
+
+class _Messaging(_Resource):
+    def kit(self) -> builtins.list[dict[str, Any]]:
+        body = self._t.request("GET", "/v1/messaging/transactional/kit")
+        items = body if isinstance(body, list) else body.get("data", [])
+        return list(items)
+
+    def catalog(self) -> builtins.list[dict[str, Any]]:
+        body = self._t.request("GET", "/v1/messaging/transactional/catalog")
+        items = body if isinstance(body, list) else body.get("data", [])
+        return list(items)
+
+    def preview(
+        self,
+        template_key: str,
+        *,
+        body_template: str | None = None,
+        variables: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {"templateKey": template_key}
+        if body_template is not None:
+            payload["bodyTemplate"] = body_template
+        if variables is not None:
+            payload["variables"] = dict(variables)
+        result = self._t.request("POST", "/v1/messaging/transactional/preview", json=payload)
+        return result if isinstance(result, dict) else {}
+
+    def send(
+        self,
+        template_key: str,
+        *,
+        to: str | None = None,
+        recipient_id: str | None = None,
+        variables: Mapping[str, Any] | None = None,
+        idempotency_key: str | None = None,
+        consent_proof_id: str | None = None,
+        allow_extra_segments: bool | None = None,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {"templateKey": template_key}
+        if to is not None:
+            payload["to"] = to
+        if recipient_id is not None:
+            payload["recipientId"] = recipient_id
+        if variables is not None:
+            payload["variables"] = dict(variables)
+        if consent_proof_id is not None:
+            payload["consentProofId"] = consent_proof_id
+        if allow_extra_segments is not None:
+            payload["allowExtraSegments"] = allow_extra_segments
+        result = self._t.request(
+            "POST",
+            "/v1/messaging/transactional",
+            json=payload,
+            idempotency_key=idempotency_key,
+        )
+        return result if isinstance(result, dict) else {}
+
+    def list_deliveries(
+        self, *, template_key: str | None = None, limit: int = 50
+    ) -> builtins.list[dict[str, Any]]:
+        params: dict[str, Any] = {"limit": limit}
+        if template_key is not None:
+            params["templateKey"] = template_key
+        body = self._t.request(
+            "GET", "/v1/messaging/transactional/deliveries", params=params
+        )
+        if isinstance(body, list):
+            return list(body)
+        return list(body.get("data", []))
+
+
+class _TransactionalSocial(_Resource):
+    def catalog(self) -> builtins.list[dict[str, Any]]:
+        body = self._t.request("GET", "/v1/social/transactional/catalog")
+        items = body if isinstance(body, list) else body.get("data", [])
+        return list(items)
+
+    def list_templates(self) -> builtins.list[dict[str, Any]]:
+        body = self._t.request("GET", "/v1/social/transactional/templates")
+        items = body if isinstance(body, list) else body.get("data", [])
+        return list(items)
+
+    def preview(
+        self,
+        event_key: str,
+        *,
+        variables: Mapping[str, Any] | None = None,
+        channels: builtins.list[str] | None = None,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {"eventKey": event_key}
+        if variables is not None:
+            payload["variables"] = dict(variables)
+        if channels is not None:
+            payload["channels"] = channels
+        result = self._t.request(
+            "POST", "/v1/social/transactional/preview", json=payload
+        )
+        return result if isinstance(result, dict) else {}
+
+    def trigger(
+        self,
+        event_key: str,
+        *,
+        mode: str | None = None,
+        variables: Mapping[str, Any] | None = None,
+        channels: builtins.list[str] | None = None,
+        idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {"eventKey": event_key}
+        if mode is not None:
+            payload["mode"] = mode
+        if variables is not None:
+            payload["variables"] = dict(variables)
+        if channels is not None:
+            payload["channels"] = channels
+        result = self._t.request(
+            "POST",
+            "/v1/social/transactional/events",
+            json=payload,
+            idempotency_key=idempotency_key,
+        )
+        return result if isinstance(result, dict) else {}
+
+    def list_events(
+        self, *, event_key: str | None = None, limit: int = 50
+    ) -> builtins.list[dict[str, Any]]:
+        params: dict[str, Any] = {"limit": limit}
+        if event_key is not None:
+            params["eventKey"] = event_key
+        body = self._t.request(
+            "GET", "/v1/social/transactional/events", params=params
+        )
+        items = body if isinstance(body, list) else body.get("data", [])
+        return list(items)
+
+
+class _Social(_Resource):
+    def __init__(self, transport: Transport) -> None:
+        super().__init__(transport)
+        self.transactional = _TransactionalSocial(transport)
+
+    def list_networks(self) -> dict[str, Any]:
+        result = self._t.request("GET", "/v1/social/networks")
+        return result if isinstance(result, dict) else {"networks": []}
+
+    def refresh_networks(self) -> dict[str, Any]:
+        result = self._t.request("POST", "/v1/social/networks/refresh")
+        return result if isinstance(result, dict) else {}
+
+    def list(
+        self,
+        *,
+        status: str | None = None,
+        channel_id: str | None = None,
+        group_id: str | None = None,
+        limit: int = 25,
+    ) -> builtins.list[dict[str, Any]]:
+        params: dict[str, Any] = {"limit": limit}
+        if status is not None:
+            params["status"] = status
+        if channel_id is not None:
+            params["channelId"] = channel_id
+        if group_id is not None:
+            params["groupId"] = group_id
+        body = self._t.request("GET", "/v1/social/posts", params=params)
+        items = body if isinstance(body, list) else body.get("data", [])
+        return list(items)
+
+    def get(self, post_id: str) -> dict[str, Any]:
+        body = self._t.request("GET", f"/v1/social/posts/{post_id}")
+        if isinstance(body, dict) and "data" in body:
+            return body["data"]
+        return body if isinstance(body, dict) else {}
+
+    def create(self, **body: Any) -> dict[str, Any]:
+        idem = body.pop("idempotency_key", None)
+        result = self._t.request(
+            "POST",
+            "/v1/social/posts",
+            json=body,
+            idempotency_key=idem if isinstance(idem, str) else None,
+        )
+        return result if isinstance(result, dict) else {}
+
+    def update(self, post_id: str, **body: Any) -> dict[str, Any]:
+        result = self._t.request(
+            "PATCH", f"/v1/social/posts/{post_id}", json=body
+        )
+        if isinstance(result, dict) and "data" in result:
+            return result["data"]
+        return result if isinstance(result, dict) else {}
+
+    def schedule(
+        self,
+        post_id: str,
+        scheduled_at: str,
+        *,
+        target_account_ref: str | None = None,
+        idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {"scheduledAt": scheduled_at}
+        if target_account_ref is not None:
+            payload["targetAccountRef"] = target_account_ref
+        result = self._t.request(
+            "POST",
+            f"/v1/social/posts/{post_id}/schedule",
+            json=payload,
+            idempotency_key=idempotency_key,
+        )
+        return result if isinstance(result, dict) else {}
+
+    def publish(
+        self,
+        post_id: str,
+        *,
+        target_account_ref: str | None = None,
+        idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {}
+        if target_account_ref is not None:
+            payload["targetAccountRef"] = target_account_ref
+        result = self._t.request(
+            "POST",
+            f"/v1/social/posts/{post_id}/publish",
+            json=payload,
+            idempotency_key=idempotency_key,
+        )
+        return result if isinstance(result, dict) else {}
+
+    def delete(self, post_id: str, *, from_provider: bool = False) -> dict[str, Any]:
+        params = {"fromProvider": "true"} if from_provider else None
+        result = self._t.request(
+            "DELETE", f"/v1/social/posts/{post_id}", params=params
+        )
+        return result if isinstance(result, dict) else {}
+
+    def analytics(self, post_id: str, *, refresh: bool = False) -> dict[str, Any]:
+        params = {"refresh": "true"} if refresh else None
+        result = self._t.request(
+            "GET", f"/v1/social/posts/{post_id}/analytics", params=params
+        )
+        return result if isinstance(result, dict) else {}
+
+
+class _Marketing(_Resource):
+    def strategy(self, *, detail: str | None = None) -> dict[str, Any]:
+        params = {"detail": "full"} if detail == "full" else None
+        result = self._t.request("GET", "/v1/marketing/strategy", params=params)
+        return result if isinstance(result, dict) else {}
+
+    def list_icps(self, *, detail: str | None = None) -> builtins.list[dict[str, Any]]:
+        params = {"detail": "full"} if detail == "full" else None
+        body = self._t.request("GET", "/v1/marketing/icps", params=params)
+        items = body if isinstance(body, list) else body.get("data", [])
+        return list(items)
+
+    def get_icp(self, icp_id: str) -> dict[str, Any]:
+        body = self._t.request("GET", f"/v1/marketing/icps/{icp_id}")
+        if isinstance(body, dict) and "data" in body:
+            return body["data"]
+        return body if isinstance(body, dict) else {}
+
+    def creation_defaults(self) -> dict[str, Any]:
+        body = self._t.request("GET", "/v1/marketing/creation-defaults")
+        if isinstance(body, dict) and "data" in body:
+            return body["data"]
+        return body if isinstance(body, dict) else {}
+
+    def patch_strategy(self, patch: dict[str, Any]) -> dict[str, Any]:
+        result = self._t.request(
+            "PATCH", "/v1/marketing/strategy", json={"patch": patch}
+        )
+        return result if isinstance(result, dict) else {}
+
+    def set_creation_defaults(self, **fields: Any) -> dict[str, Any]:
+        result = self._t.request(
+            "PATCH", "/v1/marketing/creation-defaults", json=fields
+        )
+        return result if isinstance(result, dict) else {}
+
+    def create_icp(self, **fields: Any) -> dict[str, Any]:
+        result = self._t.request("POST", "/v1/marketing/icps", json=fields)
+        return result if isinstance(result, dict) else {}
+
+    def update_icp(self, icp_id: str, **fields: Any) -> dict[str, Any]:
+        result = self._t.request(
+            "PATCH", f"/v1/marketing/icps/{icp_id}", json=fields
+        )
+        return result if isinstance(result, dict) else {}
+
+
+class _Creations(_Resource):
+    def list(
+        self, *, status: str | None = None, limit: int = 25
+    ) -> builtins.list[dict[str, Any]]:
+        params: dict[str, Any] = {"limit": limit}
+        if status is not None:
+            params["status"] = status
+        body = self._t.request("GET", "/v1/creations", params=params)
+        items = body if isinstance(body, list) else body.get("data", [])
+        return list(items)
+
+    def get(self, creation_id: str, *, detail: str | None = None) -> dict[str, Any]:
+        params = {"detail": "full"} if detail == "full" else None
+        body = self._t.request(
+            "GET", f"/v1/creations/{creation_id}", params=params
+        )
+        if isinstance(body, dict) and "data" in body:
+            return body["data"]
+        return body if isinstance(body, dict) else {}
+
+    def spawn(
+        self, brief: str, *, idempotency_key: str | None = None, **fields: Any
+    ) -> dict[str, Any]:
+        payload = {"brief": brief, **fields}
+        result = self._t.request(
+            "POST",
+            "/v1/creations",
+            json=payload,
+            idempotency_key=idempotency_key,
+        )
+        return result if isinstance(result, dict) else {}
+
+    def approve_strategy(self, creation_id: str) -> dict[str, Any]:
+        result = self._t.request(
+            "POST", f"/v1/creations/{creation_id}/approve-strategy", json={}
+        )
+        return result if isinstance(result, dict) else {}
+
+
+class _Lists(_Resource):
+    def list(self) -> builtins.list[dict[str, Any]]:
+        body = self._t.request("GET", "/v1/lists")
+        items = body if isinstance(body, list) else body.get("data", [])
+        return list(items)
+
+    def get(self, list_id: str) -> dict[str, Any]:
+        body = self._t.request("GET", f"/v1/lists/{list_id}")
+        if isinstance(body, dict) and "data" in body:
+            return body["data"]
+        return body if isinstance(body, dict) else {}
+
+    def create(self, name: str, **fields: Any) -> dict[str, Any]:
+        body = self._t.request(
+            "POST", "/v1/lists", json={"name": name, **fields}
+        )
+        if isinstance(body, dict) and "data" in body:
+            return body["data"]
+        return body if isinstance(body, dict) else {}
+
+    def update(self, list_id: str, **fields: Any) -> dict[str, Any]:
+        body = self._t.request(
+            "PATCH", f"/v1/lists/{list_id}", json=fields
+        )
+        if isinstance(body, dict) and "data" in body:
+            return body["data"]
+        return body if isinstance(body, dict) else {}
+
+    def delete(self, list_id: str) -> dict[str, Any]:
+        result = self._t.request("DELETE", f"/v1/lists/{list_id}")
+        return result if isinstance(result, dict) else {}
+
+    def add_members(
+        self, list_id: str, contact_ids: builtins.list[str]
+    ) -> dict[str, Any]:
+        body = self._t.request(
+            "POST",
+            f"/v1/lists/{list_id}/members",
+            json={"contactIds": contact_ids},
+        )
+        if isinstance(body, dict) and "data" in body:
+            return body["data"]
+        return body if isinstance(body, dict) else {}
+
+    def remove_members(
+        self, list_id: str, contact_ids: builtins.list[str]
+    ) -> dict[str, Any]:
+        body = self._t.request(
+            "POST",
+            f"/v1/lists/{list_id}/members/remove",
+            json={"contactIds": contact_ids},
+        )
+        if isinstance(body, dict) and "data" in body:
+            return body["data"]
+        return body if isinstance(body, dict) else {}
+
+
+class _Approvals(_Resource):
+    def list_policies(self) -> builtins.list[dict[str, Any]]:
+        body = self._t.request("GET", "/v1/approvals/policies")
+        items = body if isinstance(body, list) else body.get("data", [])
+        return list(items)
+
+    def list_pending(self, *, limit: int = 25) -> builtins.list[dict[str, Any]]:
+        body = self._t.request(
+            "GET", "/v1/approvals/pending", params={"limit": limit}
+        )
+        items = body if isinstance(body, list) else body.get("data", [])
+        return list(items)
+
+    def manage_policy(self, surface_kind: str, **fields: Any) -> dict[str, Any]:
+        result = self._t.request(
+            "PUT", f"/v1/approvals/policies/{surface_kind}", json=fields
+        )
+        return result if isinstance(result, dict) else {}
+
+    def decide(
+        self,
+        request_id: str,
+        *,
+        decision: str,
+        acting_as_member_uid: str,
+        comment: str | None = None,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "decision": decision,
+            "actingAsMemberUid": acting_as_member_uid,
+        }
+        if comment is not None:
+            payload["comment"] = comment
+        result = self._t.request(
+            "POST",
+            f"/v1/approvals/pending/{request_id}/decide",
+            json=payload,
+        )
+        return result if isinstance(result, dict) else {}
+
+
+class _Links(_Resource):
+    def create(
+        self, destination_url: str, *, idempotency_key: str | None = None, **fields: Any
+    ) -> dict[str, Any]:
+        body = self._t.request(
+            "POST",
+            "/v1/links",
+            json={"destinationUrl": destination_url, **fields},
+            idempotency_key=idempotency_key,
+        )
+        if isinstance(body, dict) and "data" in body:
+            return body["data"]
+        return body if isinstance(body, dict) else {}
+
+
+# --------------------------------------------------------------------------- #
 # Top-level client
 # --------------------------------------------------------------------------- #
 
@@ -341,9 +825,9 @@ class GenieOS:
 
         from genieos import GenieOS
 
-        with GenieOS(api_key="gos_live_...") as mg:
-            mg.events.emit("user.signed_up", email="aki@example.com")
-            sends = mg.templates.send(
+        with GenieOS(api_key="gos_live_...") as gos:  # or GENIEOS_API_KEY
+            gos.events.emit("user.signed_up", email="aki@example.com")
+            sends = gos.templates.send(
                 "welcome",
                 to="aki@example.com",
                 variables={"firstName": "Aki"},
@@ -378,6 +862,14 @@ class GenieOS:
         self.connectors = _Connectors(transport)
         self.pages = _Pages(transport)
         self.audit = _Audit(transport)
+        self.messaging = _Messaging(transport)
+        self.sms = self.messaging
+        self.social = _Social(transport)
+        self.marketing = _Marketing(transport)
+        self.creations = _Creations(transport)
+        self.lists = _Lists(transport)
+        self.approvals = _Approvals(transport)
+        self.links = _Links(transport)
         _telemetry.capture(resolved_key, "sdk_client_initialized", {
             "client": "sync",
             "has_custom_base_url": bool(base_url),

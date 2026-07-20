@@ -37,7 +37,7 @@ def test_sends_bearer_auth_and_idempotency_key() -> None:
 
     assert out.event_id == "evt_1"
     assert captured[0].headers["authorization"] == "Bearer gos_test_unit"
-    assert captured[0].headers["idempotency-key"].startswith("mg-py-")
+    assert captured[0].headers["idempotency-key"].startswith("gos-py-")
     body = json.loads(captured[0].content)
     assert body["name"] == "user.signed_up"
 
@@ -165,10 +165,10 @@ def test_idempotency_key_format() -> None:
 
     k1 = _gen_idempotency_key()
     k2 = _gen_idempotency_key()
-    assert k1.startswith("mg-py-")
+    assert k1.startswith("gos-py-")
     assert k1 != k2
     parts = k1.split("-")
-    assert len(parts) == 4  # mg, py, base36-millis, 8 hex
+    assert len(parts) == 4  # gos, py, base36-millis, 8 hex
     assert len(parts[3]) == 8
 
 

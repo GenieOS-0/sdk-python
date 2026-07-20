@@ -5,7 +5,7 @@ Mirrors the Node SDK's transport contract:
 
   - Bearer auth on every request.
   - Auto-generated ``Idempotency-Key`` for mutating requests when one
-    isn't supplied. Format: ``mg-py-<base36(time_ms)>-<8 hex>``.
+    isn't supplied. Format: ``gos-py-<base36(time_ms)>-<8 hex>``.
   - Retries for network errors and ``429``/``5xx`` responses, with
     exponential back-off and jitter, capped by ``max_retries``. Honors
     ``Retry-After`` (in seconds) when present.
@@ -49,7 +49,7 @@ def _gen_idempotency_key() -> str:
         base36 = "0123456789abcdefghijklmnopqrstuvwxyz"[n % 36] + base36
         n //= 36
     rand = secrets.token_hex(4)
-    return f"mg-py-{base36}-{rand}"
+    return f"gos-py-{base36}-{rand}"
 
 
 def _is_retryable_status(status: int) -> bool:

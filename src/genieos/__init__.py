@@ -5,11 +5,11 @@ Quickstart::
 
     from genieos import GenieOS
 
-    with GenieOS(api_key="gos_live_...") as mg:
-        ws = mg.workspace.get()
+    with GenieOS(api_key="gos_live_...") as gos:  # or GENIEOS_API_KEY env
+        ws = gos.workspace.get()
         print(ws.name, ws.plan)
 
-        send = mg.templates.send(
+        send = gos.templates.send(
             "welcome",
             to="aki@example.com",
             variables={"firstName": "Aki"},

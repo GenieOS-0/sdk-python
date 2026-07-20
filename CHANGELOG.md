@@ -1,5 +1,11 @@
 # genieos (Python SDK)
 
+## 0.1.1
+
+- Template create + compose and expanded resource surface to match the Node SDK.
+- Docs / examples use `GENIEOS_API_KEY` and `gos_live_*` / `gos_test_*` keys.
+- Auto idempotency keys now prefixed `gos-py-` (was `mg-py-`).
+
 ## 0.1.0
 
 Initial release.
