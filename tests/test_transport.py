@@ -14,11 +14,11 @@ import httpx
 import pytest
 import respx
 
-from mailgenius import (
-    AsyncMailGenius,
-    MailGenius,
-    MailGeniusAuthError,
-    MailGeniusRateLimitError,
+from genieos import (
+    AsyncGenieOS,
+    GenieOS,
+    GenieOSAuthError,
+    GenieOSRateLimitError,
 )
 
 
@@ -32,12 +32,12 @@ def test_sends_bearer_auth_and_idempotency_key() -> None:
 
     respx.post("https://api.example.com/v1/events").mock(side_effect=handler)
 
-    with MailGenius(api_key="mg_test_unit", base_url="https://api.example.com") as mg:
+    with GenieOS(api_key="gos_test_unit", base_url="https://api.example.com") as mg:
         out = mg.events.emit("user.signed_up", email="aki@example.com")
 
     assert out.event_id == "evt_1"
-    assert captured[0].headers["authorization"] == "Bearer mg_test_unit"
-    assert captured[0].headers["idempotency-key"].startswith("mg-py-")
+    assert captured[0].headers["authorization"] == "Bearer gos_test_unit"
+    assert captured[0].headers["idempotency-key"].startswith("gos-py-")
     body = json.loads(captured[0].content)
     assert body["name"] == "user.signed_up"
 
@@ -58,8 +58,8 @@ def test_429_then_success_retries() -> None:
 
     respx.post("https://api.example.com/v1/events").mock(side_effect=handler)
 
-    with MailGenius(
-        api_key="mg_test_unit", base_url="https://api.example.com", max_retries=3
+    with GenieOS(
+        api_key="gos_test_unit", base_url="https://api.example.com", max_retries=3
     ) as mg:
         out = mg.events.emit("welcome.shown", email="aki@example.com")
 
@@ -75,8 +75,8 @@ def test_401_raises_auth_error() -> None:
             json={"error": {"code": "invalid_api_key", "message": "bad token"}},
         )
     )
-    with MailGenius(api_key="mg_test_bad", base_url="https://api.example.com") as mg:
-        with pytest.raises(MailGeniusAuthError) as ctx:
+    with GenieOS(api_key="gos_test_bad", base_url="https://api.example.com") as mg:
+        with pytest.raises(GenieOSAuthError) as ctx:
             mg.workspace.get()
     assert ctx.value.code == "invalid_api_key"
     assert ctx.value.status == 401
@@ -91,12 +91,12 @@ def test_exhausted_429s_raise_rate_limit_error() -> None:
             json={"error": {"code": "rate_limited", "message": "calm down"}},
         )
     )
-    with MailGenius(
-        api_key="mg_test_unit",
+    with GenieOS(
+        api_key="gos_test_unit",
         base_url="https://api.example.com",
         max_retries=2,
     ) as mg:
-        with pytest.raises(MailGeniusRateLimitError) as ctx:
+        with pytest.raises(GenieOSRateLimitError) as ctx:
             mg.events.emit("never.lands")
     assert ctx.value.retry_after_seconds == 0
 
@@ -115,8 +115,8 @@ async def test_async_client_round_trip() -> None:
             },
         )
     )
-    async with AsyncMailGenius(
-        api_key="mg_test_unit", base_url="https://api.example.com"
+    async with AsyncGenieOS(
+        api_key="gos_test_unit", base_url="https://api.example.com"
     ) as mg:
         ws = await mg.workspace.get()
     assert ws.id == "ws_async"
@@ -136,7 +136,7 @@ def test_keeps_explicit_idempotency_key() -> None:
         side_effect=handler
     )
 
-    with MailGenius(api_key="mg_test_unit", base_url="https://api.example.com") as mg:
+    with GenieOS(api_key="gos_test_unit", base_url="https://api.example.com") as mg:
         mg.templates.send(
             "welcome",
             to="aki@example.com",
@@ -148,27 +148,27 @@ def test_keeps_explicit_idempotency_key() -> None:
 
 
 def test_constructor_resolves_env_var(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("MAILGENIUS_API_KEY", "mg_env_value")
-    with MailGenius() as mg:
+    monkeypatch.setenv("GENIEOS_API_KEY", "mg_env_value")
+    with GenieOS() as mg:
         # Access protected to verify resolution
         assert mg._transport._api_key == "mg_env_value"  # type: ignore[attr-defined]
 
 
 def test_constructor_requires_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("MAILGENIUS_API_KEY", raising=False)
-    with pytest.raises(MailGeniusAuthError):
-        MailGenius()
+    monkeypatch.delenv("GENIEOS_API_KEY", raising=False)
+    with pytest.raises(GenieOSAuthError):
+        GenieOS()
 
 
 def test_idempotency_key_format() -> None:
-    from mailgenius._transport import _gen_idempotency_key
+    from genieos._transport import _gen_idempotency_key
 
     k1 = _gen_idempotency_key()
     k2 = _gen_idempotency_key()
-    assert k1.startswith("mg-py-")
+    assert k1.startswith("gos-py-")
     assert k1 != k2
     parts = k1.split("-")
-    assert len(parts) == 4  # mg, py, base36-millis, 8 hex
+    assert len(parts) == 4  # gos, py, base36-millis, 8 hex
     assert len(parts[3]) == 8
 
 

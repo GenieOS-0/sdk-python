@@ -3,14 +3,14 @@ requires = ["hatchling>=1.21"]
 build-backend = "hatchling.build"
 
 [project]
-name = "mailgenius"
-version = "0.1.0"
-description = "Official Python SDK for MailGenius — sync + async clients, typed responses, idempotency-aware retries, webhook verification."
+name = "genieos"
+version = "0.1.2"
+description = "Official Python SDK for GenieOS — sync + async clients, typed responses, idempotency-aware retries, webhook verification."
 readme = "README.md"
 license = { text = "MIT" }
-authors = [{ name = "MailGenius", email = "developers@mailgenius.pro" }]
+authors = [{ name = "GenieOS", email = "developers@genieos.pro" }]
 requires-python = ">=3.9"
-keywords = ["mailgenius", "email", "transactional", "drip", "sequences", "mcp"]
+keywords = ["genieos", "email", "transactional", "drip", "sequences", "mcp"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -30,11 +30,11 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://docs.mailgenius.pro/sdks/python"
-Documentation = "https://docs.mailgenius.pro/sdks/python"
-Repository = "https://github.com/mail-genius/sdk-python"
-Issues = "https://github.com/mail-genius/sdk-python/issues"
-Changelog = "https://github.com/mail-genius/sdk-python/blob/main/CHANGELOG.md"
+Homepage = "https://docs.genieos.pro/sdks/python"
+Documentation = "https://docs.genieos.pro/sdks/python"
+Repository = "https://github.com/GenieOS-0/sdk-python"
+Issues = "https://github.com/GenieOS-0/sdk-python/issues"
+Changelog = "https://github.com/GenieOS-0/sdk-python/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 telemetry = [
@@ -51,10 +51,10 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/mailgenius"]
+packages = ["src/genieos"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src/mailgenius", "README.md", "LICENSE", "CHANGELOG.md", "pyproject.toml"]
+include = ["src/genieos", "README.md", "LICENSE", "CHANGELOG.md", "pyproject.toml"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

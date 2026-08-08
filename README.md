@@ -1,6 +1,6 @@
 # genieos — Python SDK
 
-[![PyPI version](https://img.shields.io/pypi/v/mailgenius.svg)](https://pypi.org/project/genieos)
+[![PyPI version](https://img.shields.io/pypi/v/genieos.svg)](https://pypi.org/project/genieos)
 
 The official Python SDK for [GenieOS](https://genieos.pro). Sync and
 async clients, typed responses (Pydantic), automatic idempotency,
@@ -17,14 +17,18 @@ Requires Python 3.9+ and `httpx>=0.27`, `pydantic>=2.6`.
 
 ## Quickstart (sync)
 
+API keys are minted in **Settings → API keys**. Production keys look like
+`gos_live_…`; sandbox keys look like `gos_test_…`. Put the secret in
+`GENIEOS_API_KEY` (never commit it).
+
 ```python
 from genieos import GenieOS
 
-with GenieOS(api_key="mg_live_...") as mg:
-    ws = mg.workspace.get()
+with GenieOS(api_key="gos_live_...") as gos:
+    ws = gos.workspace.get()
     print(ws.name, "on", ws.plan)
 
-    send = mg.templates.send(
+    send = gos.templates.send(
         "welcome",
         to="aki@example.com",
         variables={"firstName": "Aki"},
@@ -32,18 +36,18 @@ with GenieOS(api_key="mg_live_...") as mg:
     print("queued:", send.id)
 ```
 
-The API key is also picked up from the `MAILGENIUS_API_KEY` env var,
+The API key is also picked up from the `GENIEOS_API_KEY` env var,
 matching the Node SDK and CLI.
 
 ## Quickstart (async)
 
 ```python
 import asyncio
-from genieos import AsyncMailGenius
+from genieos import AsyncGenieOS
 
 async def main():
-    async with AsyncMailGenius() as mg:  # MAILGENIUS_API_KEY env var
-        await mg.events.emit(
+    async with AsyncGenieOS() as gos:  # GENIEOS_API_KEY env var
+        await gos.events.emit(
             "subscription.cancelled",
             email="aki@example.com",
             traits={"tier": "pro", "reason": "moving to weekly"},
@@ -55,6 +59,7 @@ asyncio.run(main())
 ## Webhook verification (Flask)
 
 ```python
+import os
 from flask import Flask, request, abort
 from genieos import verify_webhook, WebhookSignatureError
 
@@ -66,7 +71,7 @@ def webhook():
         delivery = verify_webhook(
             request.get_data(as_text=True),
             request.headers,
-            secret=os.environ["MAILGENIUS_WEBHOOK_SECRET"],
+            secret=os.environ["GENIEOS_WEBHOOK_SECRET"],
         )
     except WebhookSignatureError as e:
         abort(400, str(e))
@@ -84,22 +89,22 @@ performs constant-time signature comparison. The same module exposes
 
 ```python
 from genieos import (
-    MailGeniusRateLimitError,
-    MailGeniusValidationError,
-    MailGeniusAuthError,
+    GenieOSRateLimitError,
+    GenieOSValidationError,
+    GenieOSAuthError,
 )
 
 try:
-    mg.events.emit("checkout.completed", email="aki@example.com")
-except MailGeniusRateLimitError as e:
+    gos.events.emit("checkout.completed", email="aki@example.com")
+except GenieOSRateLimitError as e:
     time.sleep(e.retry_after_seconds)
-except MailGeniusValidationError as e:
+except GenieOSValidationError as e:
     log.warning("422: %s", e.body)
-except MailGeniusAuthError:
+except GenieOSAuthError:
     rotate_my_key()
 ```
 
-All SDK errors inherit from `MailGeniusError` and expose `.code`,
+All SDK errors inherit from `GenieOSError` and expose `.code`,
 `.status`, `.request_id`, `.body`.
 
 ## License

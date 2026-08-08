@@ -12,7 +12,7 @@ import time
 
 import pytest
 
-from mailgenius.webhooks import (
+from genieos.webhooks import (
     VerifiedDelivery,
     WebhookSignatureError,
     sign_webhook,
@@ -38,7 +38,7 @@ def _envelope() -> str:
 def test_accepts_freshly_signed_envelope() -> None:
     body = _envelope()
     header = sign_webhook(body, SECRET)
-    out = verify_webhook(body, {"X-MailGenius-Signature": header}, SECRET)
+    out = verify_webhook(body, {"X-GenieOS-Signature": header}, SECRET)
     assert isinstance(out, VerifiedDelivery)
     assert out.id == "evt_1"
     assert out.type == "send.delivered"
@@ -51,14 +51,14 @@ def test_rejects_tampered_body() -> None:
     header = sign_webhook(body, SECRET)
     tampered = body.replace("evt_1", "evt_2")
     with pytest.raises(WebhookSignatureError, match="mismatch"):
-        verify_webhook(tampered, {"X-MailGenius-Signature": header}, SECRET)
+        verify_webhook(tampered, {"X-GenieOS-Signature": header}, SECRET)
 
 
 def test_rejects_out_of_window_timestamp() -> None:
     body = _envelope()
     header = sign_webhook(body, SECRET, timestamp=int(time.time()) - 10_000)
     with pytest.raises(WebhookSignatureError, match="tolerance"):
-        verify_webhook(body, {"X-MailGenius-Signature": header}, SECRET)
+        verify_webhook(body, {"X-GenieOS-Signature": header}, SECRET)
 
 
 def test_rejects_missing_header() -> None:
@@ -70,14 +70,14 @@ def test_rejects_missing_header() -> None:
 def test_handles_case_insensitive_headers_and_lists() -> None:
     body = _envelope()
     header = sign_webhook(body, SECRET)
-    out = verify_webhook(body, {"x-mailgenius-signature": [header]}, SECRET)
+    out = verify_webhook(body, {"x-genieos-signature": [header]}, SECRET)
     assert out.id == "evt_1"
 
 
 def test_accepts_byte_body() -> None:
     body = _envelope()
     header = sign_webhook(body, SECRET)
-    out = verify_webhook(body.encode("utf-8"), {"X-MailGenius-Signature": header}, SECRET)
+    out = verify_webhook(body.encode("utf-8"), {"X-GenieOS-Signature": header}, SECRET)
     assert out.id == "evt_1"
 
 
